@@ -4,7 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { EmptyState, Segmented } from '../../components/ui/primitives'
 import { CATEGORIES, PROMO_BANNERS } from '../../data/mock'
 import { useFakeLoading, useInterval } from '../../hooks'
-import { cn, money } from '../../lib/format'
+import { assetUrl, cn, money } from '../../lib/format'
 import { useStore } from '../../store/AppStore'
 import type { CategoryKey, Dietary } from '../../types'
 import type { CustomerOutletCtx } from './CustomerLayout'
@@ -148,7 +148,26 @@ export function DiscoveryFeed({ searchMode }: { searchMode?: boolean }) {
           </div>
         )}
       </section>
+
+      {browsing && <PartnerCta />}
     </div>
+  )
+}
+
+/** "Own a restaurant?" call to action at the end of the feed → partner registration. */
+function PartnerCta() {
+  return (
+    <section className="mt-12 relative overflow-hidden rounded-3xl bg-slate-900 text-white">
+      <img src={assetUrl('images/partner-praslin-dinner.jpg')} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover opacity-50" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+      <div className="relative p-6 md:p-10 max-w-xl">
+        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">For restaurants</div>
+        <h2 className="text-2xl md:text-3xl font-extrabold mt-1">Own a restaurant in Seychelles?</h2>
+        <p className="mt-2 text-white/85">Reach customers across Mahé, Praslin and La Digue. Register online in about 10 minutes.</p>
+        <Link to="/partner" className="btn-brand mt-5">Become a partner</Link>
+      </div>
+      <Link to="/credits" className="absolute bottom-2 right-3 text-[11px] text-white/60 hover:text-white underline">Photo credits</Link>
+    </section>
   )
 }
 
@@ -182,6 +201,12 @@ function PromoSlider() {
       <div ref={ref} className="-mx-4 md:mx-0 px-4 md:px-0 flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
         {PROMO_BANNERS.map((b) => (
           <div key={b.id} className={cn('snap-start shrink-0 w-[88vw] md:w-[calc(50%-8px)] xl:w-[calc(33.333%-11px)] h-40 md:h-44 rounded-3xl bg-gradient-to-br text-white p-5 md:p-6 flex justify-between overflow-hidden relative', b.className)}>
+            {b.image && (
+              <>
+                <img src={assetUrl(b.image)} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/0" />
+              </>
+            )}
             <div className="flex flex-col justify-between relative z-10 max-w-[70%]">
               <div>
                 <div className="text-xl md:text-2xl font-extrabold leading-tight">{b.title}</div>
@@ -189,7 +214,7 @@ function PromoSlider() {
               </div>
               <span className="self-start bg-white text-black text-sm font-semibold px-4 h-9 inline-flex items-center rounded-full">{b.cta}</span>
             </div>
-            <span className="absolute -right-2 -bottom-4 text-[110px] rotate-12 select-none">{b.emoji}</span>
+            {!b.image && <span className="absolute -right-2 -bottom-4 text-[110px] rotate-12 select-none">{b.emoji}</span>}
           </div>
         ))}
       </div>

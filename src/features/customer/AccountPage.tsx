@@ -1,4 +1,5 @@
-import { Bell, ChevronRight, CreditCard, Heart, HelpCircle, MapPin, Tag, User } from 'lucide-react'
+import { Bell, ChevronRight, CreditCard, Heart, HelpCircle, Image as ImageIcon, MapPin, Store, Tag, User } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../../store/AppStore'
 
 export function AccountPage() {
@@ -23,6 +24,10 @@ export function AccountPage() {
             <Icon size={20} /><span className="flex-1 font-medium">{label}</span>{value && <span className="text-sm text-slate-500">{value}</span>}<ChevronRight size={18} className="text-slate-400" />
           </button>
         ))}
+      </div>
+      <div className="mt-4 card divide-y divide-slate-100">
+        <Link to="/partner" className="w-full flex items-center gap-3 p-4 hover:bg-slate-50"><Store size={20} /><span className="flex-1 font-medium">Add your restaurant</span><ChevronRight size={18} className="text-slate-400" /></Link>
+        <Link to="/credits" className="w-full flex items-center gap-3 p-4 hover:bg-slate-50"><ImageIcon size={20} /><span className="flex-1 font-medium">Photo credits</span><ChevronRight size={18} className="text-slate-400" /></Link>
       </div>
     </div>
   )

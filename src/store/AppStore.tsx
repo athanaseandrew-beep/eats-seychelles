@@ -1,12 +1,13 @@
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 import {
   COURIERS, DEFAULT_FEE_CONFIG, ME_COURIER, MENU_ITEMS, MODIFIER_GROUPS, RESTAURANTS,
   SAVED_ADDRESSES, SEED_APPLICATIONS, SEED_DISPUTES, SEED_ORDERS,
 } from '../data/mock'
 import type {
   CartLine, ChatMessage, Courier, Dispute, DisputeStatus, FeeConfig, FulfillmentMode, MenuItem,
-  ModifierGroup, OnboardingApplication, Order, OrderStatus, Restaurant,
+  ModifierGroup, OnboardingApplication, Order, OrderStatus, Restaurant, Subscription, SubscriptionPayment,
 } from '../types'
+import { applyPayment, startSubscription } from '../lib/billing'
 import { uid } from '../lib/format'
 
 // ─────────────────────────────────────────────────────────────
@@ -96,6 +97,9 @@ type Action =
   | { type: 'fees/set'; config: FeeConfig }
   | { type: 'application/decide'; id: string; status: OnboardingApplication['status'] }
   | { type: 'dispute/resolve'; id: string; status: DisputeStatus; refundAmount?: number }
+  // partner registration + billing
+  | { type: 'application/submit'; application: OnboardingApplication }
+  | { type: 'subscription/pay'; restaurantId: string; payment: SubscriptionPayment }
 
 function patchOrder(orders: Order[], id: string, fn: (o: Order) => Order) {
   return orders.map((o) => (o.id === id ? fn(o) : o))
@@ -196,26 +200,82 @@ function reducer(s: State, a: Action): State {
       const app = s.applications.find((x) => x.id === a.id)
       let restaurants = s.restaurants
       if (app && a.status === 'approved' && !s.restaurants.some((r) => r.id === `new-${app.id}`)) {
+        const now = Date.now()
         restaurants = [...restaurants, {
-          id: `new-${app.id}`, name: app.businessName, cuisine: app.cuisine, categories: ['deals'], rating: 5, ratingCount: 0,
+          id: `new-${app.id}`, name: app.businessName, cuisine: app.cuisine, categories: app.categories?.length ? app.categories : ['deals'], rating: 5, ratingCount: 0,
           etaMin: 20, etaMax: 30, deliveryFee: 0, priceLevel: 2, distanceKm: 2.4, emoji: app.emoji,
           gradient: 'from-violet-300 via-purple-400 to-indigo-500', promo: 'New on Eats', online: true, busyMode: false,
-          dietary: [], address: app.area, menuCategories: ['Popular'], tier: app.tier,
+          dietary: [], address: app.address ? `${app.address}, ${app.island ?? ''}`.replace(/, $/, '') : app.area, menuCategories: ['Popular'], tier: app.tier,
+          image: app.coverImage,
+          // The first month paid at registration starts counting when the store goes live.
+          subscription: app.firstPayment ? startSubscription(app.firstPayment, now) : undefined,
         }]
       }
       return { ...s, restaurants, applications: s.applications.map((x) => (x.id === a.id ? { ...x, status: a.status } : x)) }
     }
     case 'dispute/resolve':
       return { ...s, disputes: s.disputes.map((d) => (d.id === a.id ? { ...d, status: a.status, refundAmount: a.refundAmount ?? d.refundAmount } : d)) }
+    case 'application/submit':
+      return { ...s, applications: [a.application, ...s.applications.filter((x) => x.id !== a.application.id)] }
+    case 'subscription/pay':
+      return { ...s, restaurants: s.restaurants.map((r) => (r.id === a.restaurantId ? { ...r, subscription: applyPayment(r.subscription, a.payment, Date.now()) } : r)) }
     default:
       return s
   }
 }
 
+// ── Local persistence ────────────────────────────────────────
+// There is no backend yet, so partner registrations, approved stores, subscription payments
+// and fee settings are kept in this browser's localStorage. They survive a refresh but are
+// not shared with other devices. Replace with API calls when a backend exists.
+
+export const STORAGE_KEY = 'eats-seychelles:v1'
+
+interface Persisted {
+  applications: OnboardingApplication[]
+  newRestaurants: Restaurant[]
+  subscriptions: Record<string, Subscription | undefined>
+  feeConfig: Partial<FeeConfig>
+}
+
+function hydrate(base: State): State {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return base
+    const p = JSON.parse(raw) as Partial<Persisted>
+    const seeded = base.restaurants.map((r) => (p.subscriptions && r.id in p.subscriptions ? { ...r, subscription: p.subscriptions[r.id] } : r))
+    return {
+      ...base,
+      applications: p.applications ?? base.applications,
+      restaurants: [...seeded, ...(p.newRestaurants ?? []).filter((n) => !seeded.some((r) => r.id === n.id))],
+      feeConfig: { ...base.feeConfig, ...p.feeConfig, commission: { ...base.feeConfig.commission, ...p.feeConfig?.commission } },
+    }
+  } catch {
+    return base
+  }
+}
+
+function persist(s: State) {
+  const data: Persisted = {
+    applications: s.applications,
+    newRestaurants: s.restaurants.filter((r) => r.id.startsWith('new-')),
+    subscriptions: Object.fromEntries(s.restaurants.filter((r) => !r.id.startsWith('new-')).map((r) => [r.id, r.subscription])),
+    feeConfig: s.feeConfig,
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) } catch { /* storage full or blocked: keep working in memory */ }
+}
+
+/** Clears saved registrations/payments and reloads with the seed data. */
+export function resetDemoData() {
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+  window.location.reload()
+}
+
 const Ctx = createContext<{ state: State; dispatch: React.Dispatch<Action> } | null>(null)
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initial)
+  const [state, dispatch] = useReducer(reducer, initial, hydrate)
+  useEffect(() => { persist(state) }, [state.applications, state.restaurants, state.feeConfig]) // eslint-disable-line react-hooks/exhaustive-deps
   const value = useMemo(() => ({ state, dispatch }), [state])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

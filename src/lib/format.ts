@@ -26,7 +26,12 @@ export const timeAgo = (ts: number) => {
   return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`
 }
 
-export const cn = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
+/** Resolves a public/ asset path ("images/x.jpg") against the deploy base; data:/http(s) URLs pass through. */
+export const assetUrl = (p: string) => (/^(data:|https?:|blob:)/.test(p) ? p : `${import.meta.env.BASE_URL}${p.replace(/^\//, '')}`)
+
+export const shortDate = (ts: number) => new Date(ts).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })
+
+export const cn =(...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 
 export const uid = (prefix = '') => prefix + Math.random().toString(36).slice(2, 9)
 

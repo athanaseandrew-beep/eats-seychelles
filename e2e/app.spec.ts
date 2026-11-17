@@ -19,6 +19,11 @@ test.describe('every role view loads', () => {
     ['/admin/onboarding', 'Chez Batista'],
     ['/admin/fees', 'Service fee cap'],
     ['/admin/disputes', 'D-1042'],
+    ['/admin/partners', 'Paid-up stores'],
+    ['/merchant/billing', 'Listing plan'],
+    ['/partner', 'Grow your business with Eats Seychelles'],
+    ['/partner/apply', 'Register your business'],
+    ['/credits', 'Photo credits'],
   ]
   for (const [path, text] of routes) {
     test(path, async ({ page }) => {

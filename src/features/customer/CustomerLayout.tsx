@@ -59,6 +59,7 @@ export function CustomerLayout() {
             <input value={query} onChange={(e) => onSearch(e.target.value)} placeholder="Search restaurants, dishes, groceries" className="bg-transparent outline-none flex-1 text-sm" />
           </div>
           <div className="flex-1 md:hidden" />
+          <NavLink to="/partner" className="hidden xl:inline-flex btn-ghost text-sm whitespace-nowrap">For restaurants</NavLink>
           <NavLink to="/orders" className="hidden md:inline-flex btn-ghost text-sm"><Receipt size={18} /> Orders</NavLink>
           <button onClick={() => dispatch({ type: 'cart/open', open: true })}
             className={cn('relative inline-flex items-center gap-2 h-10 rounded-full font-semibold text-sm transition', count ? 'bg-black text-white px-4' : 'md:bg-slate-100 md:px-4 w-10 md:w-auto justify-center')}

@@ -61,6 +61,53 @@ with the required options and a promo code, then check the order appears in the 
 | `/admin/onboarding` | Admin: restaurant approval queue |
 | `/admin/fees` | Admin: commission and fee configuration |
 | `/admin/disputes` | Admin: dispute resolution log |
+| `/admin/partners` | Admin: partner listing plans, overdue stores, trip commission, platform earnings |
+| `/merchant/billing` | Merchant: listing plan, pay/renew SCR 200, payment history, payout statement |
+| `/partner` | Partner landing: how it works, pricing, requirements, status lookup |
+| `/partner/apply` | Partner registration: 5 steps — business, contact, documents + cover photo, plan, payment |
+| `/partner/status/:id` | Partner application status and receipt |
+| `/credits` | Photo credits (Wikimedia Commons licences) |
+
+## Partner registration and billing
+
+Restaurants sign up at `/partner/apply`, pay their first month, and wait for approval:
+
+1. **Business**: name, what they serve, categories, business registration number, island and address.
+2. **Contact**: owner, Seychelles phone number (+248, 7 digits), email.
+3. **Documents**: cover photo (shrunk in the browser), trade licence, food hygiene certificate, proof of bank
+   account. The menu can be added later.
+4. **Plan**: tier (Standard 30% / Plus 25% / Premium 20% of food sales) and the partner terms.
+5. **Payment**: SCR 200 first month by card, mobile banking or bank transfer (simulated, see below).
+
+The application then appears in **Admin → Onboarding** with the payment reference. Approving it puts the store
+in the customer feed with its own photo, and its 30-day listing starts.
+
+**Pricing model** (edit in Admin → Fees & commission, logic in `src/lib/billing.ts`):
+
+- **SCR 200 listing fee every 30 days** per restaurant. Paying early adds 30 days to the end of the plan; paying
+  after it lapses restarts from today. Merchants pay or renew in **Merchant → Billing**. Overdue stores get a
+  banner and are flagged in **Admin → Partners & billing**.
+- **SCR 15 per delivered trip**, deducted from the restaurant's payout. Pickup orders have no trip fee.
+- **Tier commission** on food sales, as before.
+- Platform earnings (listing fees + trip commission + tier commission) appear on the Admin overview.
+
+**Prototype limits:**
+
+- **No real payments.** The payment step is clearly marked as a demo, and no card details are collected. To
+  take real money, add a backend with a Seychelles payment gateway: redirect to the bank's hosted payment page,
+  confirm the payment on the server, and only then create the application or extend the plan.
+- **Data is stored in this browser only.** Without a backend, registrations, approvals, payments and fee changes
+  are kept in `localStorage` (`eats-seychelles:v1`). They survive a refresh but aren't shared between devices.
+  Admin → *Reset demo data* clears them.
+- Uploaded documents keep only the file name, and the cover photo is kept in the browser.
+
+## Photos
+
+Store covers and banners are freely licensed photos from Wikimedia Commons, stored in `public/images`. They show
+Seychelles scenery (Anse Source d'Argent, Beau Vallon, the Victoria clock tower, Sir Selwyn Selwyn-Clarke Market)
+and generic food matching each store. They aren't photos of the businesses listed. The licences require
+attribution, which is on the `/credits` page (data in `src/data/credits.ts`). Partners replace the stock photo
+with their own when they register.
 
 ## Folder structure
 

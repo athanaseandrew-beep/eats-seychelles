@@ -1,6 +1,9 @@
-import { BarChart3, ClipboardList, Flame, Plus, UtensilsCrossed, Volume2, VolumeX } from 'lucide-react'
+import { BarChart3, ClipboardList, CreditCard, Flame, Plus, UtensilsCrossed, Volume2, VolumeX } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom'
+import { useNow } from '../../hooks'
+import { daysLeft, subscriptionState } from '../../lib/billing'
+import { Billing } from './Billing'
 import { Toggle } from '../../components/ui/primitives'
 import { MARKET } from '../../config/market'
 import { cn, money, orderId } from '../../lib/format'
@@ -14,9 +17,15 @@ const NAMES = ['Josiane F.', 'Terry V.', 'Anne-Marie L.', 'Bernard H.', 'Aisha R
 
 export function MerchantPortal() {
   const { state, dispatch } = useStore()
-  const [storeId, setStoreId] = useState('r1')
+  const [params] = useSearchParams()
+  const [storeId, setStoreId] = useState(() => {
+    const wanted = params.get('store')
+    return wanted && state.restaurants.some((x) => x.id === wanted) ? wanted : 'r1'
+  })
   const [sound, setSound] = useState(false)
+  const now = useNow(60_000)
   const r = state.restaurants.find((x) => x.id === storeId)!
+  const plan = subscriptionState(r.subscription, now)
   const orders = state.orders.filter((o) => o.restaurantId === storeId)
   const today = orders.filter((o) => o.status !== 'cancelled')
   const revenue = today.reduce((s, o) => s + o.fees.subtotal, 0)
@@ -64,7 +73,7 @@ export function MerchantPortal() {
           </div>
         </div>
         <div className="max-w-[1600px] mx-auto px-4 md:px-6 flex items-center gap-1 overflow-x-auto scrollbar-hide">
-          {[{ to: '/merchant', label: 'Live orders', icon: ClipboardList, end: true }, { to: '/merchant/menu', label: 'Menu & store', icon: UtensilsCrossed }].map(({ to, label, icon: Icon, end }) => (
+          {[{ to: '/merchant', label: 'Live orders', icon: ClipboardList, end: true }, { to: '/merchant/menu', label: 'Menu & store', icon: UtensilsCrossed }, { to: '/merchant/billing', label: 'Billing', icon: CreditCard }].map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => cn('shrink-0 h-11 px-3 inline-flex items-center gap-2 text-sm font-semibold border-b-2 transition', isActive ? 'border-black text-black' : 'border-transparent text-slate-500 hover:text-black')}>
               <Icon size={16} />{label}
             </NavLink>
@@ -82,9 +91,19 @@ export function MerchantPortal() {
         <div className="bg-red-600 text-white text-sm font-semibold text-center py-2">Store is paused — customers can browse but can’t order.</div>
       )}
 
+      {(plan === 'overdue' || plan === 'due_soon') && r.subscription && (
+        <div className={plan === 'overdue' ? 'bg-red-50 text-red-800 border-b border-red-100' : 'bg-amber-50 text-amber-900 border-b border-amber-100'}>
+          <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-2 text-sm font-semibold flex flex-wrap items-center justify-between gap-2">
+            <span>{plan === 'overdue' ? `Listing fee overdue by ${-daysLeft(r.subscription, now)} days — pay ${money(state.feeConfig.subscriptionFee)} to stay listed.` : `Listing fee due in ${daysLeft(r.subscription, now)} days.`}</span>
+            <Link to={`/merchant/billing`} className="underline underline-offset-2">Go to billing</Link>
+          </div>
+        </div>
+      )}
+
       <Routes>
         <Route index element={<KDSBoard restaurantId={storeId} sound={sound} />} />
         <Route path="menu" element={<MenuManager restaurantId={storeId} />} />
+        <Route path="billing" element={<Billing restaurantId={storeId} />} />
       </Routes>
     </div>
   )

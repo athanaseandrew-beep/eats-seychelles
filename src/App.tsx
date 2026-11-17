@@ -11,6 +11,8 @@ import { AccountPage } from './features/customer/AccountPage'
 import { MerchantPortal } from './features/merchant/MerchantPortal'
 import { CourierApp } from './features/courier/CourierApp'
 import { AdminDashboard } from './features/admin/AdminDashboard'
+import { PartnerPortal } from './features/partner/PartnerPortal'
+import { CreditsPage } from './features/customer/CreditsPage'
 
 // VITE_ROUTER=memory is used for sandboxed previews; default is clean URLs.
 const mode = import.meta.env.VITE_ROUTER as string | undefined
@@ -35,7 +37,9 @@ export default function App() {
             <Route path="store/:id" element={<Storefront />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="account" element={<AccountPage />} />
+            <Route path="credits" element={<CreditsPage />} />
           </Route>
+          <Route path="/partner/*" element={<PartnerPortal />} />
           <Route path="/track/:orderId" element={<OrderTracking />} />
           <Route path="/merchant/*" element={<MerchantPortal />} />
           <Route path="/courier/*" element={<CourierApp />} />

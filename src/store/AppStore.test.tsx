@@ -113,6 +113,42 @@ describe('AppStore', () => {
       expect(result.current.state.restaurants.at(-1)!.name).toBe('Chez Batista')
     })
 
+    it('a self-registered, paid application goes live with its photo and a 30-day plan', () => {
+      const { result } = setup()
+      const payment = { id: 'p1', amount: 200, method: 'card' as const, at: Date.now(), reference: 'SUB-X', period: '30 days' }
+      act(() => result.current.dispatch({
+        type: 'application/submit',
+        application: { id: 'APP-NEW1', businessName: 'Chez Test', cuisine: 'Creole', owner: 'A B', area: 'Takamaka, Mahé', submittedAt: Date.now(), emoji: '🐙',
+          documents: { tradeLicense: true, foodSafety: true, bankDetails: true, menuUploaded: false }, status: 'pending', tier: 'plus',
+          categories: ['creole', 'seafood'], coverImage: 'data:image/jpeg;base64,xx', firstPayment: payment },
+      }))
+      expect(result.current.state.applications[0].id).toBe('APP-NEW1')
+      act(() => result.current.dispatch({ type: 'application/decide', id: 'APP-NEW1', status: 'approved' }))
+      const r = result.current.state.restaurants.find((x) => x.id === 'new-APP-NEW1')!
+      expect(r.image).toBe('data:image/jpeg;base64,xx')
+      expect(r.categories).toEqual(['creole', 'seafood'])
+      expect(r.subscription?.payments).toEqual([payment])
+      expect(r.subscription!.paidUntil - Date.now()).toBeGreaterThan(29 * 86_400_000)
+    })
+
+    it('paying the listing fee extends the plan by 30 days', () => {
+      const { result } = setup()
+      const before = result.current.state.restaurants.find((r) => r.id === 'r1')!.subscription!
+      act(() => result.current.dispatch({ type: 'subscription/pay', restaurantId: 'r1', payment: { id: 'p2', amount: 200, method: 'card', at: Date.now(), reference: 'SUB-Y', period: '30 days' } }))
+      const after = result.current.state.restaurants.find((r) => r.id === 'r1')!.subscription!
+      expect(after.paidUntil - before.paidUntil).toBe(30 * 86_400_000)
+      expect(after.payments).toHaveLength(before.payments.length + 1)
+    })
+
+    it('registrations and payments survive a reload (saved in localStorage)', () => {
+      const first = setup()
+      act(() => first.result.current.dispatch({ type: 'application/decide', id: 'app1', status: 'approved' }))
+      first.unmount()
+      const second = setup()
+      expect(second.result.current.state.restaurants.some((r) => r.id === 'new-app1')).toBe(true)
+      expect(second.result.current.state.applications.find((a) => a.id === 'app1')!.status).toBe('approved')
+    })
+
     it('rejecting an application does not add a restaurant', () => {
       const { result } = setup()
       const count = result.current.state.restaurants.length

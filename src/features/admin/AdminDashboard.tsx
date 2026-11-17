@@ -1,10 +1,14 @@
-import { Activity, AlertOctagon, Bike, Check, CheckCircle2, Clock, DollarSign, FileCheck2, FileX2, LayoutDashboard, MessageSquareWarning, Percent, RotateCcw, Save, Store, Undo2, X } from 'lucide-react'
+import { Activity, AlertOctagon, Bike, Check, CheckCircle2, Clock, DollarSign, FileCheck2, FileX2, LayoutDashboard, Mail, MessageSquareWarning, Percent, Phone, Receipt, RotateCcw, Save, Store, Undo2, Wallet, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { platformRevenue, storeStatement, subscriptionState, daysLeft, PAYMENT_METHODS } from '../../lib/billing'
+import { shortDate } from '../../lib/format'
+import { resetDemoData } from '../../store/AppStore'
+import { RestaurantArt } from '../customer/RestaurantCard'
 import { Drawer } from '../../components/ui/Drawer'
 import { Badge, EmptyState, Segmented, StatusBadge } from '../../components/ui/primitives'
 import { DEFAULT_FEE_CONFIG } from '../../data/mock'
-import { useInterval } from '../../hooks'
+import { useInterval, useNow } from '../../hooks'
 import { MARKET } from '../../config/market'
 import { clockTime, CURRENCY, cn, money, moneyShort, timeAgo } from '../../lib/format'
 import { useStore } from '../../store/AppStore'
@@ -14,6 +18,7 @@ import { Logo } from '../customer/CustomerLayout'
 const NAV = [
   { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/admin/onboarding', label: 'Onboarding', icon: Store },
+  { to: '/admin/partners', label: 'Partners & billing', icon: Wallet },
   { to: '/admin/fees', label: 'Fees & commission', icon: Percent },
   { to: '/admin/disputes', label: 'Disputes', icon: MessageSquareWarning },
 ]
@@ -22,7 +27,9 @@ export function AdminDashboard() {
   const { state } = useStore()
   const pendingApps = state.applications.filter((a) => a.status === 'pending').length
   const openDisputes = state.disputes.filter((d) => d.status === 'open' || d.status === 'investigating').length
-  const badge: Record<string, number> = { '/admin/onboarding': pendingApps, '/admin/disputes': openDisputes }
+  const now = useNow(60_000)
+  const overdue = state.restaurants.filter((r) => subscriptionState(r.subscription, now) === 'overdue').length
+  const badge: Record<string, number> = { '/admin/onboarding': pendingApps, '/admin/disputes': openDisputes, '/admin/partners': overdue }
   return (
     <div className="min-h-[calc(100vh-44px)] bg-slate-50 lg:flex">
       <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-white border-r border-slate-200 sticky top-11 h-[calc(100vh-44px)] p-4">
@@ -34,7 +41,10 @@ export function AdminDashboard() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto p-3 rounded-2xl bg-slate-50 text-xs text-slate-500">Region: <b className="text-black">{MARKET.defaultRegionLabel}</b><br />Signed in as {MARKET.opsEmail}</div>
+        <div className="mt-auto space-y-2">
+          <div className="p-3 rounded-2xl bg-slate-50 text-xs text-slate-500">Region: <b className="text-black">{MARKET.defaultRegionLabel}</b><br />Signed in as {MARKET.opsEmail}</div>
+          <button className="w-full text-xs text-slate-500 hover:text-red-600 inline-flex items-center gap-1.5 px-3" onClick={() => { if (window.confirm('Clear saved registrations, approvals and payments in this browser and restore the demo data?')) resetDemoData() }}><RotateCcw size={13} />Reset demo data</button>
+        </div>
       </aside>
       <div className="flex-1 min-w-0">
         <div className="lg:hidden sticky top-11 z-30 bg-white border-b border-slate-200 flex overflow-x-auto scrollbar-hide px-2">
@@ -48,6 +58,7 @@ export function AdminDashboard() {
           <Routes>
             <Route index element={<Overview />} />
             <Route path="onboarding" element={<Onboarding />} />
+            <Route path="partners" element={<Partners />} />
             <Route path="fees" element={<Fees />} />
             <Route path="disputes" element={<Disputes />} />
           </Routes>
@@ -100,6 +111,8 @@ function Overview() {
           </div>
         ))}
       </div>
+
+      <PlatformEarnings />
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-4 mt-4">
         <div className="card p-5">
@@ -161,6 +174,83 @@ function Overview() {
   )
 }
 
+/** What the platform owner earns: listing fees + per-trip commission + tier %. */
+function PlatformEarnings() {
+  const { state } = useStore()
+  const now = useNow(60_000)
+  const rev = platformRevenue(state.restaurants, state.orders, state.feeConfig, now)
+  const cards = [
+    { label: 'Listing fees (monthly)', value: money(rev.mrr), sub: `${rev.activeSubscriptions} paid-up stores × ${money(state.feeConfig.subscriptionFee)}`, warn: rev.overdueSubscriptions ? `${rev.overdueSubscriptions} overdue` : '' },
+    { label: 'Trip commission', value: money(rev.tripCommission), sub: `${rev.trips} delivered trips × ${money(state.feeConfig.perTripCommission)}`, warn: '' },
+    { label: 'Sales commission', value: money(rev.percentCommission), sub: 'Tier % on delivered orders', warn: '' },
+    { label: 'Your earnings', value: money(rev.mrr + rev.tripCommission + rev.percentCommission), sub: 'Listing + trips + sales commission', warn: '' },
+  ]
+  return (
+    <div className="mt-4">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="font-bold">Platform earnings</h2>
+        <Link to="/admin/partners" className="text-sm font-semibold underline underline-offset-2">Partners & billing</Link>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {cards.map((c, i) => (
+          <div key={c.label} className={cn('card p-4', i === 3 && 'bg-black text-white border-black')}>
+            <div className={cn('text-xs font-semibold uppercase tracking-wide', i === 3 ? 'text-white/60' : 'text-slate-500')}>{c.label}</div>
+            <div className="text-2xl font-extrabold tabular mt-2 truncate">{c.value}</div>
+            <div className={cn('text-xs mt-1', i === 3 ? 'text-white/60' : 'text-slate-500')}>{c.sub}{c.warn && <span className="ml-1.5 text-red-600 font-semibold">· {c.warn}</span>}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Partners & billing ────────────────────────────────────────
+function Partners() {
+  const { state } = useStore()
+  const now = useNow(60_000)
+  const rev = platformRevenue(state.restaurants, state.orders, state.feeConfig, now)
+  const rows = state.restaurants.map((r) => ({ r, st: subscriptionState(r.subscription, now), s: storeStatement(state.orders, r, state.feeConfig) }))
+    .sort((a, b) => Number(b.st === 'overdue') - Number(a.st === 'overdue') || (a.r.subscription?.paidUntil ?? 0) - (b.r.subscription?.paidUntil ?? 0))
+  const tone = { active: 'green', due_soon: 'amber', overdue: 'red', none: 'slate' } as const
+  const label = { active: 'Active', due_soon: 'Due soon', overdue: 'Overdue', none: 'No plan' }
+  return (
+    <>
+      <PageTitle title="Partners & billing" sub={`${money(state.feeConfig.subscriptionFee)} per store every 30 days · ${money(state.feeConfig.perTripCommission)} per delivered trip`} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="card p-4"><div className="text-xs font-semibold uppercase text-slate-500">Paid-up stores</div><div className="text-2xl font-extrabold mt-1">{rev.activeSubscriptions}</div></div>
+        <div className="card p-4"><div className="text-xs font-semibold uppercase text-slate-500">Overdue</div><div className={cn('text-2xl font-extrabold mt-1', rev.overdueSubscriptions > 0 && 'text-red-600')}>{rev.overdueSubscriptions}</div></div>
+        <div className="card p-4"><div className="text-xs font-semibold uppercase text-slate-500">Listing fees collected</div><div className="text-2xl font-extrabold mt-1 tabular">{money(rev.subscriptionCollected)}</div></div>
+        <div className="card p-4"><div className="text-xs font-semibold uppercase text-slate-500">Trip commission</div><div className="text-2xl font-extrabold mt-1 tabular">{money(rev.tripCommission)}</div></div>
+      </div>
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[860px]">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide"><tr>{['Store', 'Tier', 'Plan', 'Paid until', 'Last payment', 'Trips', 'Trip fees', 'Sales comm.'].map((h) => <th key={h} className="text-left font-semibold px-4 py-2.5">{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.map(({ r, st, s }) => {
+                const last = r.subscription?.payments[0]
+                return (
+                  <tr key={r.id} className="border-t border-slate-100">
+                    <td className="px-4 py-3"><div className="flex items-center gap-3"><RestaurantArt r={r} className="w-12 h-9 rounded-lg shrink-0 [&_span]:text-xl" /><span className="font-semibold">{r.name}</span></div></td>
+                    <td className="px-4 py-3 capitalize whitespace-nowrap">{r.tier} · {state.feeConfig.commission[r.tier]}%</td>
+                    <td className="px-4 py-3"><Badge tone={tone[st]}>{label[st]}</Badge></td>
+                    <td className="px-4 py-3 text-slate-600">{r.subscription ? <>{shortDate(r.subscription.paidUntil)} <span className="text-xs">({daysLeft(r.subscription, now)}d)</span></> : '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{last ? <>{money(last.amount)} · {PAYMENT_METHODS.find((m) => m.key === last.method)?.label}</> : '—'}</td>
+                    <td className="px-4 py-3 tabular">{s.trips}</td>
+                    <td className="px-4 py-3 tabular whitespace-nowrap">{money(s.tripCommission)}</td>
+                    <td className="px-4 py-3 tabular whitespace-nowrap">{money(s.percentCommission)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500 mt-3">Trips and commission count delivered orders in this session. Payments are recorded in this browser until a backend is connected.</p>
+    </>
+  )
+}
+
 // ── Onboarding ────────────────────────────────────────────────
 const DOCS: { key: keyof import('../../types').OnboardingApplication['documents']; label: string }[] = [
   { key: 'tradeLicense', label: 'Trade license' }, { key: 'foodSafety', label: 'Food safety cert.' },
@@ -178,11 +268,14 @@ function Onboarding() {
       {apps.length === 0 && <EmptyState icon="🎉" title="Queue is clear" body="New applications will appear here." />}
       <div className="grid md:grid-cols-2 gap-4">
         {apps.map((a) => {
-          const complete = Object.values(a.documents).every(Boolean)
+          // The menu can be added after going live (in the Merchant portal); the legal docs cannot.
+          const complete = a.documents.tradeLicense && a.documents.foodSafety && a.documents.bankDetails
           return (
             <div key={a.id} className="card p-5">
               <div className="flex items-start gap-4">
-                <span className="w-14 h-14 rounded-2xl bg-slate-100 grid place-items-center text-3xl">{a.emoji}</span>
+                {a.coverImage
+                  ? <img src={a.coverImage} alt="" className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                  : <span className="w-14 h-14 rounded-2xl bg-slate-100 grid place-items-center text-3xl shrink-0">{a.emoji}</span>}
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-lg">{a.businessName}</div>
                   <div className="text-sm text-slate-500">{a.cuisine} · {a.area}</div>
@@ -191,18 +284,35 @@ function Onboarding() {
                 <Badge tone={a.status === 'approved' ? 'green' : a.status === 'rejected' ? 'red' : a.status === 'info_requested' ? 'amber' : 'slate'}>{a.status.replace('_', ' ')}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-4">
-                {DOCS.map((d) => (
-                  <div key={d.key} className={cn('flex items-center gap-2 text-sm rounded-lg px-2.5 py-2', a.documents[d.key] ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700')}>
-                    {a.documents[d.key] ? <FileCheck2 size={15} /> : <FileX2 size={15} />}{d.label}
-                  </div>
-                ))}
+                {DOCS.map((d) => {
+                  const ok = a.documents[d.key]
+                  const optional = d.key === 'menuUploaded'
+                  return (
+                    <div key={d.key} className={cn('flex items-center gap-2 text-sm rounded-lg px-2.5 py-2', ok ? 'bg-emerald-50 text-emerald-800' : optional ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-700')}>
+                      {ok ? <FileCheck2 size={15} /> : <FileX2 size={15} />}{optional && !ok ? 'Menu: adding later' : d.label}
+                    </div>
+                  )
+                })}
               </div>
+              {(a.phone || a.email || a.brn) && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                  {a.phone && <span className="inline-flex items-center gap-1"><Phone size={12} />{a.phone}</span>}
+                  {a.email && <span className="inline-flex items-center gap-1"><Mail size={12} />{a.email}</span>}
+                  {a.brn && <span>BRN {a.brn}</span>}
+                </div>
+              )}
               <div className="flex items-center justify-between mt-4 text-sm"><span className="text-slate-500">Partner tier</span><Badge tone="purple" className="capitalize">{a.tier} · {state.feeConfig.commission[a.tier]}% commission</Badge></div>
+              <div className="flex items-center justify-between mt-2 text-sm">
+                <span className="text-slate-500">First month</span>
+                {a.firstPayment
+                  ? <Badge tone="green"><Receipt size={12} />Paid {money(a.firstPayment.amount)} · {a.firstPayment.reference}</Badge>
+                  : <Badge tone="amber">Not paid</Badge>}
+              </div>
               {(a.status === 'pending' || a.status === 'info_requested') && (
                 <div className="grid grid-cols-3 gap-2 mt-4">
                   <button className="btn-danger h-10 text-sm" onClick={() => dispatch({ type: 'application/decide', id: a.id, status: 'rejected' })}><X size={15} />Reject</button>
                   <button className="btn-secondary h-10 text-sm" onClick={() => dispatch({ type: 'application/decide', id: a.id, status: 'info_requested' })}>Request info</button>
-                  <button className="btn h-10 text-sm bg-black text-white hover:bg-slate-800" disabled={!complete} title={complete ? '' : 'All documents required'} onClick={() => dispatch({ type: 'application/decide', id: a.id, status: 'approved' })}><Check size={15} />Approve</button>
+                  <button className="btn h-10 text-sm bg-black text-white hover:bg-slate-800" disabled={!complete} title={complete ? '' : 'Trade license, food safety cert. and bank details are required'} onClick={() => dispatch({ type: 'application/decide', id: a.id, status: 'approved' })}><Check size={15} />Approve</button>
                 </div>
               )}
               {a.status === 'approved' && <div className="mt-4 text-sm text-emerald-700 font-semibold flex items-center gap-1.5"><CheckCircle2 size={16} />Live — now visible in the Customer feed</div>}
@@ -250,6 +360,27 @@ function Fees() {
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
           <div className="card overflow-hidden">
+            <div className="px-5 py-4 font-bold">Partner plan <span className="font-normal text-sm text-slate-500">· charged to restaurants</span></div>
+            <table className="w-full text-sm">
+              <tbody>
+                {([
+                  { key: 'subscriptionFee', label: 'Monthly listing fee', hint: 'Every partner pays this every 30 days to stay listed' },
+                  { key: 'perTripCommission', label: 'Commission per delivered trip', hint: 'Flat amount deducted from the restaurant payout' },
+                ] as const).map((row) => (
+                  <tr key={row.key} className="border-t border-slate-100">
+                    <td className="px-5 py-3"><div className="font-semibold">{row.label}</div><div className="text-xs text-slate-500">{row.hint}</div></td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="inline-flex items-center gap-1 h-10 px-3 rounded-xl bg-slate-100 focus-within:ring-2 focus-within:ring-black">
+                        <span className="text-slate-500 text-xs">{CURRENCY}</span>
+                        <input className="w-14 bg-transparent outline-none text-right font-semibold tabular" aria-label={row.label} value={draft[row.key]} onChange={(e) => setDraft({ ...draft, [row.key]: num(e.target.value) })} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="card overflow-hidden">
             <div className="px-5 py-4 font-bold">Merchant commission by partner tier</div>
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide"><tr><th className="text-left px-5 py-2.5 font-semibold">Tier</th><th className="text-left px-5 py-2.5 font-semibold hidden sm:table-cell">Stores</th><th className="text-right px-5 py-2.5 font-semibold">Commission</th></tr></thead>
@@ -296,8 +427,10 @@ function Fees() {
             <div className="flex justify-between"><span className="text-slate-600">Service fee</span><span className="tabular">{money(example.service)}</span></div>
             <div className="flex justify-between"><span className="text-slate-600">Delivery fee</span><span className="tabular">{money(example.delivery)}</span></div>
             <div className="flex justify-between"><span className="text-slate-600">VAT</span><span className="tabular">{money((exampleSubtotal + example.service + example.delivery) * draft.taxPct / 100)}</span></div>
-            <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold"><span>Platform take</span><span className="tabular">{money(example.service + exampleSubtotal * draft.commission.standard / 100)}</span></div>
-            <div className="flex justify-between text-slate-500"><span>Merchant payout</span><span className="tabular">{money(exampleSubtotal * (1 - draft.commission.standard / 100))}</span></div>
+            <div className="flex justify-between"><span className="text-slate-600">Trip commission</span><span className="tabular">{money(draft.perTripCommission)}</span></div>
+            <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold"><span>Platform take</span><span className="tabular">{money(example.service + exampleSubtotal * draft.commission.standard / 100 + draft.perTripCommission)}</span></div>
+            <div className="flex justify-between text-slate-500"><span>Merchant payout</span><span className="tabular">{money(exampleSubtotal * (1 - draft.commission.standard / 100) - draft.perTripCommission)}</span></div>
+            <div className="text-xs text-slate-500 pt-1">Plus {money(draft.subscriptionFee)} listing fee per store every 30 days.</div>
           </div>
         </div>
       </div>

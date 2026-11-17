@@ -1,15 +1,20 @@
 import { Heart, Tag } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Rating, Skeleton } from '../../components/ui/primitives'
-import { cn, money } from '../../lib/format'
+import { assetUrl, cn, money } from '../../lib/format'
 import { useStore } from '../../store/AppStore'
 import type { Restaurant } from '../../types'
 
+/** Store cover: photo when available, with the gradient + emoji underneath as a fallback. */
 export function RestaurantArt({ r, className, big }: { r: Restaurant; className?: string; big?: boolean }) {
   return (
     <div className={cn('relative overflow-hidden bg-gradient-to-br', r.gradient, className)}>
       <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_40%),radial-gradient(circle_at_80%_70%,white_0,transparent_35%)]" />
       <span className={cn('absolute inset-0 grid place-items-center drop-shadow-xl select-none', big ? 'text-[110px] md:text-[150px]' : 'text-6xl md:text-7xl')}>{r.emoji}</span>
+      {r.image && (
+        <img src={assetUrl(r.image)} alt={`${r.name} cover photo`} loading={big ? 'eager' : 'lazy'} decoding="async"
+          className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+      )}
     </div>
   )
 }

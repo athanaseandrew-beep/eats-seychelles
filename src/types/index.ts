@@ -68,6 +68,31 @@ export interface Restaurant {
   address: string
   menuCategories: string[]
   tier: PartnerTier
+  /** Cover photo: a path under public/ (e.g. "images/r1.jpg") or a data: URL uploaded at registration */
+  image?: string
+  /** Monthly listing plan. Missing = legacy/unbilled store. */
+  subscription?: Subscription
+}
+
+// ── Partner billing ──────────────────────────────────────────
+export type PaymentMethod = 'card' | 'bank_transfer' | 'mobile_banking'
+
+export interface SubscriptionPayment {
+  id: string
+  amount: number
+  method: PaymentMethod
+  at: number
+  /** Reference shown on receipts / bank transfer narrative */
+  reference: string
+  /** Billing period covered, e.g. "17 Nov – 17 Dec 2026" */
+  period: string
+}
+
+export interface Subscription {
+  monthlyFee: number
+  /** Listing is paid up to this timestamp */
+  paidUntil: number
+  payments: SubscriptionPayment[]
 }
 
 export interface CartLine {
@@ -156,6 +181,10 @@ export interface FeeConfig {
   deliveryFeeMultiplier: number
   taxPct: number
   commission: Record<PartnerTier, number>
+  /** Monthly listing fee every partner restaurant pays (SCR) */
+  subscriptionFee: number
+  /** Flat platform commission per delivered trip, deducted from the restaurant payout (SCR) */
+  perTripCommission: number
 }
 
 export interface OnboardingApplication {
@@ -169,6 +198,18 @@ export interface OnboardingApplication {
   documents: { tradeLicense: boolean; foodSafety: boolean; bankDetails: boolean; menuUploaded: boolean }
   status: 'pending' | 'approved' | 'rejected' | 'info_requested'
   tier: PartnerTier
+  // Self-serve registration fields (optional so seeded applications stay valid)
+  categories?: CategoryKey[]
+  description?: string
+  island?: string
+  address?: string
+  phone?: string
+  email?: string
+  /** Seychelles business registration number */
+  brn?: string
+  coverImage?: string
+  /** First month's listing fee, paid during registration */
+  firstPayment?: SubscriptionPayment
 }
 
 export type DisputeStatus = 'open' | 'investigating' | 'refunded' | 'rejected'

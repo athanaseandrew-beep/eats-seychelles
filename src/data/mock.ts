@@ -3,6 +3,7 @@ import type {
   OnboardingApplication, Order, Restaurant,
 } from '../types'
 import { MARKET } from '../config/market'
+import { shortDate } from '../lib/format'
 
 // Mock catalogue for the Seychelles market. All prices in SCR (Seychelles Rupee).
 
@@ -24,11 +25,11 @@ export const CATEGORIES: { key: CategoryKey; label: string; emoji: string }[] = 
   { key: 'desserts', label: 'Desserts', emoji: '🍨' },
 ]
 
-export const PROMO_BANNERS = [
-  { id: 'b1', title: '20% off your next 3 orders', subtitle: 'Use code EATS20 · max SCR 100 off', cta: 'Order now', className: 'from-emerald-500 to-emerald-700', emoji: '🎉' },
-  { id: 'b2', title: 'Taste of Kreol', subtitle: 'Octopus curry, ladob & grilled fish near you', cta: 'Explore Creole', className: 'from-amber-400 to-orange-500', emoji: '🐙' },
-  { id: 'b3', title: 'Free delivery all weekend', subtitle: 'Code FREEDEL on orders over SCR 200', cta: 'Browse stores', className: 'from-slate-900 to-slate-700', emoji: '🛵' },
-  { id: 'b4', title: 'New here? SCR 50 off', subtitle: 'WELCOME50 on your first order over SCR 250', cta: 'Claim offer', className: 'from-sky-500 to-indigo-600', emoji: '🏝️' },
+export const PROMO_BANNERS: { id: string; title: string; subtitle: string; cta: string; className: string; emoji: string; image?: string }[] = [
+  { id: 'b1', title: '20% off your next 3 orders', subtitle: 'Use code EATS20 · max SCR 100 off', cta: 'Order now', className: 'from-emerald-500 to-emerald-700', emoji: '🎉', image: 'images/hero-la-digue.jpg' },
+  { id: 'b2', title: 'Taste of Kreol', subtitle: 'Octopus curry, ladob & grilled fish near you', cta: 'Explore Creole', className: 'from-amber-400 to-orange-500', emoji: '🐙', image: 'images/r9-market.jpg' },
+  { id: 'b3', title: 'Free delivery all weekend', subtitle: 'Code FREEDEL on orders over SCR 200', cta: 'Browse stores', className: 'from-slate-900 to-slate-700', emoji: '🛵', image: 'images/beau-vallon.jpg' },
+  { id: 'b4', title: 'New here? SCR 50 off', subtitle: 'WELCOME50 on your first order over SCR 250', cta: 'Claim offer', className: 'from-sky-500 to-indigo-600', emoji: '🏝️', image: 'images/victoria-clock-tower.jpg' },
 ]
 
 export const SAVED_ADDRESSES = [
@@ -46,7 +47,26 @@ export const ADDRESS_SUGGESTIONS = [
   { line1: 'La Passe Jetty', line2: 'La Passe, La Digue' },
 ]
 
-export const RESTAURANTS: Restaurant[] = [
+/** Cover photos in public/images (sources and licences in data/credits.ts). */
+const COVER: Record<string, string> = {
+  r1: 'images/r1-creole.jpg', r2: 'images/r2-grilled-fish.jpg', r3: 'images/r3-burger.jpg', r4: 'images/r4-pizza.jpg',
+  r5: 'images/r5-indian.jpg', r6: 'images/r6-bowl.jpg', r7: 'images/r7-sushi.jpg', r8: 'images/r8-cafe.jpg',
+  r9: 'images/r9-market.jpg', r10: 'images/r10-pharmacy.jpg', r11: 'images/r11-ice-cream.jpg',
+}
+
+const day = 86_400_000
+/** Seeded listing plans: most stores are paid up; Coco Glacé is overdue to demo the reminder. */
+const PAID_DAYS_LEFT: Record<string, number> = { r1: 21, r2: 9, r3: 27, r4: 14, r5: 3, r6: 18, r7: 25, r8: 11, r9: 6, r10: 29, r11: -4 }
+const seedSubscription = (id: string) => {
+  const paidUntil = now + PAID_DAYS_LEFT[id] * day
+  return {
+    monthlyFee: 200,
+    paidUntil,
+    payments: [{ id: `pay-${id}-1`, amount: 200, method: 'bank_transfer' as const, at: paidUntil - 30 * day, reference: `SUB-${id.toUpperCase()}-01`, period: `${shortDate(paidUntil - 30 * day)} – ${shortDate(paidUntil)}` }],
+  }
+}
+
+const BASE_RESTAURANTS: Restaurant[] = [
   { id: 'r1', name: 'Kaz Kreol', cuisine: 'Creole · Seychellois', categories: ['creole', 'seafood', 'deals'], rating: 4.8, ratingCount: 2100, etaMin: 25, etaMax: 35, deliveryFee: 0, priceLevel: 2, distanceKm: 1.6, emoji: '🐙', gradient: 'from-amber-300 via-orange-400 to-red-500', promo: 'Free ladob over SCR 400', online: true, busyMode: false, dietary: [], address: 'Market Street, Victoria', menuCategories: ['Popular', 'Curries', 'Grills', 'Sides', 'Drinks'], tier: 'premium' },
   { id: 'r2', name: 'Lagoon Fish Grill', cuisine: 'Seafood · Grill', categories: ['seafood'], rating: 4.7, ratingCount: 1240, etaMin: 25, etaMax: 40, deliveryFee: 30, priceLevel: 3, distanceKm: 4.8, emoji: '🐟', gradient: 'from-sky-300 via-cyan-400 to-blue-600', online: true, busyMode: false, dietary: ['gluten-free'], address: 'Beau Vallon, Mahé', menuCategories: ['Popular', 'Grills', 'Platters', 'Sides'], tier: 'plus' },
   { id: 'r3', name: 'Smash Bros Burgers', cuisine: 'Burgers · American', categories: ['burgers', 'deals'], rating: 4.6, ratingCount: 1680, etaMin: 15, etaMax: 25, deliveryFee: 0, priceLevel: 2, distanceKm: 2.2, emoji: '🍔', gradient: 'from-yellow-300 via-amber-400 to-orange-600', promo: 'Buy 1 get 1 free', online: true, busyMode: false, dietary: [], address: 'Eden Island Plaza', menuCategories: ['Popular', 'Burgers', 'Sides', 'Drinks'], tier: 'standard' },
@@ -59,6 +79,8 @@ export const RESTAURANTS: Restaurant[] = [
   { id: 'r10', name: 'IslandCare Pharmacy', cuisine: 'Pharmacy · Health', categories: ['pharmacy'], rating: 4.7, ratingCount: 410, etaMin: 20, etaMax: 35, deliveryFee: 25, priceLevel: 1, distanceKm: 1.3, emoji: '💊', gradient: 'from-teal-300 via-cyan-400 to-sky-500', online: true, busyMode: false, dietary: [], address: 'Revolution Ave, Victoria', menuCategories: ['Popular', 'Wellness', 'Personal care'], tier: 'standard' },
   { id: 'r11', name: 'Coco Glacé', cuisine: 'Desserts · Ice cream', categories: ['desserts'], rating: 4.4, ratingCount: 380, etaMin: 15, etaMax: 25, deliveryFee: 20, priceLevel: 1, distanceKm: 6.2, emoji: '🍨', gradient: 'from-pink-300 via-fuchsia-400 to-purple-500', promo: '2 scoops free', online: false, busyMode: false, dietary: ['vegetarian'], address: 'Anse Royale, Mahé', menuCategories: ['Popular', 'Ice cream', 'Shakes'], tier: 'standard' },
 ]
+
+export const RESTAURANTS: Restaurant[] = BASE_RESTAURANTS.map((r) => ({ ...r, image: COVER[r.id], subscription: seedSubscription(r.id) }))
 
 export const MODIFIER_GROUPS: ModifierGroup[] = [
   // Kaz Kreol
@@ -191,6 +213,8 @@ export const DEFAULT_FEE_CONFIG: FeeConfig = {
   deliveryFeeMultiplier: 1,
   taxPct: MARKET.vatPct,
   commission: { standard: 30, plus: 25, premium: 20 },
+  subscriptionFee: 200,
+  perTripCommission: 15,
 }
 
 const line = (id: string, itemId: string, restaurantId: string, name: string, emoji: string, quantity: number, unitPrice: number, selectionLabels: string[] = [], instructions = '') =>
